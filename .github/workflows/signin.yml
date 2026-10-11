@@ -15,8 +15,6 @@ jobs:
   signin:
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    env:
-      WORKBUDDY_AUTH_FILE: ${{ runner.temp }}/wb-cred.json
     steps:
       - name: Checkout (含 signin.py)
         uses: actions/checkout@v4
@@ -27,14 +25,20 @@ jobs:
           python-version: '3.x'
 
       # 仅把 secret 写入临时文件；绝不 echo，绝不打印。runner 结束后文件随之销毁。
+      # runner.temp 只能出现在 step 级 env（GitHub 限制），不能放在 job 级 env。
       - name: Stage credential from secret
         env:
           WB_CRED: ${{ secrets.WORKBUDDY_CLOUD_CREDENTIAL }}
+          WORKBUDDY_AUTH_FILE: ${{ runner.temp }}/wb-cred.json
         run: printf '%s' "$WB_CRED" > "$WORKBUDDY_AUTH_FILE"
 
       - name: Run signin (auto)
+        env:
+          WORKBUDDY_AUTH_FILE: ${{ runner.temp }}/wb-cred.json
         run: python signin.py auto
 
       - name: Cleanup credential file
         if: always()
+        env:
+          WORKBUDDY_AUTH_FILE: ${{ runner.temp }}/wb-cred.json
         run: rm -f "$WORKBUDDY_AUTH_FILE"
