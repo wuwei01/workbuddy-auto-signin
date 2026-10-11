@@ -1,0 +1,40 @@
+name: WorkBuddy Daily Signin
+
+# 云端跑同一套脚本：从加密 secret 还原明文凭据文件后，跑 signin.py auto。
+# 与本地唯一差别是凭据来源——本地靠桌面端登录态解密，云端靠本仓库 secret。
+on:
+  schedule:
+    # 06:30 UTC ≈ 14:30 CST（下午），与本地定时任务时间一致
+    - cron: '30 6 * * *'
+  workflow_dispatch: {}   # 允许手动触发，用于首次验证与排查
+
+permissions:
+  contents: read
+
+jobs:
+  signin:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      WORKBUDDY_AUTH_FILE: ${{ runner.temp }}/wb-cred.json
+    steps:
+      - name: Checkout (含 signin.py)
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      # 仅把 secret 写入临时文件；绝不 echo，绝不打印。runner 结束后文件随之销毁。
+      - name: Stage credential from secret
+        env:
+          WB_CRED: ${{ secrets.WORKBUDDY_CLOUD_CREDENTIAL }}
+        run: printf '%s' "$WB_CRED" > "$WORKBUDDY_AUTH_FILE"
+
+      - name: Run signin (auto)
+        run: python signin.py auto
+
+      - name: Cleanup credential file
+        if: always()
+        run: rm -f "$WORKBUDDY_AUTH_FILE"
